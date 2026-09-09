@@ -86,12 +86,12 @@ class Money
 
     def from_json(string)
       hash = JSON.parse(string, symbolize_names: true)
-      Money.new(hash.fetch(:value), hash.fetch(:currency), decimal_precision: hash.fetch(:decimal_precision, nil))
+      Money.new(hash.fetch(:value), hash.fetch(:currency), decimal_precision: hash[:decimal_precision])
     end
 
     def from_hash(hash)
       hash = hash.transform_keys(&:to_sym)
-      Money.new(hash.fetch(:value), hash.fetch(:currency), decimal_precision: hash.fetch(:decimal_precision, nil))
+      Money.new(hash.fetch(:value), hash.fetch(:currency), decimal_precision: hash[:decimal_precision])
     end
 
     def rational(money1, money2)
