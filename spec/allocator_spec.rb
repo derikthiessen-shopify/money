@@ -40,6 +40,15 @@ RSpec.describe "Allocator" do
       expect(allocations).to all(be_explicit_decimal_precision)
     end
 
+    specify "#allocate applies reverse round-robin at explicit precision" do
+      money = Money.new("0.057", "USD", decimal_precision: 3)
+
+      allocations = money.allocate([0.5, 0.5], :roundrobin_reverse)
+
+      expect(allocations.map(&:value)).to eq([BigDecimal("0.028"), BigDecimal("0.029")])
+      expect(allocations).to all(be_explicit_decimal_precision)
+    end
+
     specify "#allocate does not lose pennies even when given a lossy split" do
       monies = new_allocator(1).allocate([0.333,0.333, 0.333])
       expect(monies[0].subunits).to eq(34)
