@@ -42,6 +42,14 @@ RSpec.describe "Money::Splitter" do
     expect(splits).to all(be_explicit_decimal_precision)
   end
 
+  specify "#split supports explicit precision below the currency precision" do
+    splits = Money.new(5, "USD", decimal_precision: 0).split(2).to_a
+
+    expect(splits.map(&:value)).to eq([BigDecimal("3"), BigDecimal("2")])
+    expect(splits.map(&:decimal_precision)).to eq([0, 0])
+    expect(splits).to all(be_explicit_decimal_precision)
+  end
+
   specify "#split a dollar" do
     moneys = Money.new(1).split(3)
     expect(moneys[0].subunits).to eq(34)
