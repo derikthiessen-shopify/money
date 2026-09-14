@@ -170,11 +170,23 @@ class Money
     end
 
     def coerce_maximum(maximum, allocation_currency)
-      if allocation_decimal_precision && !maximum.is_a?(Money)
-        return Money.new(maximum, allocation_currency, decimal_precision: allocation_decimal_precision)
+      return maximum.to_money(allocation_currency) unless allocation_decimal_precision
+      return Money.new(maximum, allocation_currency, decimal_precision: allocation_decimal_precision) unless maximum.is_a?(Money)
+
+      if maximum.explicit_decimal_precision? && maximum.decimal_precision != allocation_decimal_precision
+        raise Money::IncompatiblePrecisionError,
+          "maximum decimal precision #{maximum.decimal_precision} does not match allocation decimal precision #{allocation_decimal_precision}."
       end
 
-      maximum.to_money(allocation_currency)
+      normalized_maximum = Money.new(
+        maximum.value,
+        allocation_currency,
+        decimal_precision: allocation_decimal_precision,
+      )
+      return normalized_maximum if normalized_maximum.value == maximum.value
+
+      raise Money::IncompatiblePrecisionError,
+        "maximum #{maximum} cannot be represented exactly with decimal precision #{allocation_decimal_precision}."
     end
 
     def amounts_from_splits(allocations, splits, subunits_to_split = allocation_units)
