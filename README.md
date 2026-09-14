@@ -276,6 +276,7 @@ end
 | currency | string | hardcoded currency value  |
 | currency_read_only | boolean |  when true, `currency_column` won't write the currency back into the db. Must be set to true if `currency_column` is an attr_reader or delegate. Default: false |
 | coerce_null | boolean | when true, a nil value will be returned as Money.zero. Default: false |
+| decimal_precision | integer | fixed decimal precision used when reconstructing values. Explicit-precision assignments must match. Default: the currency's minor units |
 
 You can use multiple `money_column` calls to achieve the desired effects with
 currency on the model or attribute level.

@@ -658,6 +658,18 @@ RSpec.describe "Money" do
     expect(money).not_to eq(nil)
   end
 
+  it "compares equal values independently of decimal precision" do
+    implicit_money = Money.new("1.00", "USD")
+    explicit_currency_precision = Money.new("1.00", "USD", decimal_precision: 2)
+    explicit_additional_precision = Money.new("1.000", "USD", decimal_precision: 3)
+
+    expect(explicit_currency_precision).to eq(implicit_money)
+    expect(explicit_additional_precision).to eq(implicit_money)
+    expect(explicit_currency_precision.hash).to eq(implicit_money.hash)
+    expect(explicit_additional_precision.hash).to eq(implicit_money.hash)
+    expect(explicit_additional_precision <=> implicit_money).to eq(0)
+  end
+
   it "supports floor" do
     expect(Money.new(15.52).floor).to eq(Money.new(15.00))
     expect(Money.new(18.99).floor).to eq(Money.new(18.00))

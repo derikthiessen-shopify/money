@@ -28,6 +28,11 @@ class MoneyRecordCoerceNull < ActiveRecord::Base
   money_column :price_usd, currency: 'USD', coerce_null: true
 end
 
+class MoneyRecordWithDecimalPrecision < ActiveRecord::Base
+  self.table_name = 'money_records'
+  money_column :price, currency_column: 'price_currency', decimal_precision: 3
+end
+
 class MoneyWithDelegatedCurrency < ActiveRecord::Base
   self.table_name = 'money_records'
   delegate :price_currency, to: :delegated_record
@@ -78,6 +83,36 @@ RSpec.describe 'MoneyColumn' do
 
   it 'returns money with currency from the default column' do
     expect(record.price).to eq(Money.new(1.23, 'EUR'))
+  end
+
+  it 'rejects explicit precision without a fixed decimal precision' do
+    expect {
+      MoneyRecord.new(price: Money.new("0.057", "USD", decimal_precision: 3))
+    }.to raise_error(MoneyColumn::PrecisionMismatchError)
+  end
+
+  it 'preserves a configured fixed decimal precision after reload' do
+    money = Money.new("0.057", "USD", decimal_precision: 3)
+
+    record = MoneyRecordWithDecimalPrecision.create!(price: money)
+    record.reload
+
+    expect(record.price.as_json).to eq(value: "0.057", currency: "USD", decimal_precision: 3)
+  end
+
+  it 'rejects explicit precision that differs from the fixed decimal precision' do
+    expect {
+      MoneyRecordWithDecimalPrecision.new(price: Money.new("1.23", "USD", decimal_precision: 2))
+    }.to raise_error(MoneyColumn::PrecisionMismatchError)
+  end
+
+  it 'validates a configured fixed decimal precision' do
+    expect {
+      Class.new(ActiveRecord::Base) do
+        self.table_name = 'money_records'
+        money_column :price, currency_column: 'price_currency', decimal_precision: -1
+      end
+    }.to raise_error(ArgumentError, "decimal_precision must be a non-negative Integer")
   end
 
   it 'writes the currency to the db' do

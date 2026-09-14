@@ -368,6 +368,41 @@ RSpec.describe "Allocator" do
       expect(allocations).to all(be_explicit_decimal_precision)
     end
 
+    specify "#allocate_max_amounts normalizes exactly representable implicit Money maxima" do
+      money = Money.new("0.057", "USD", decimal_precision: 3)
+      maximums = [Money.new("0.03", "USD"), Money.new("0.03", "USD")]
+
+      allocations = money.allocate_max_amounts(maximums)
+
+      expect(allocations.map(&:value)).to eq([BigDecimal("0.029"), BigDecimal("0.028")])
+      expect(allocations).to all(be_explicit_decimal_precision)
+    end
+
+    specify "#allocate_max_amounts normalizes an implicit zero Money maximum" do
+      money = Money.new("0.057", "USD", decimal_precision: 3)
+
+      allocations = money.allocate_max_amounts([Money.new(0, "USD")])
+
+      expect(allocations).to eq([Money.new(0, "USD", decimal_precision: 3)])
+      expect(allocations).to all(be_explicit_decimal_precision)
+    end
+
+    specify "#allocate_max_amounts rejects implicit Money maxima that cannot be represented exactly" do
+      money = Money.new("0.1", "USD", decimal_precision: 1)
+
+      expect {
+        money.allocate_max_amounts([Money.new("0.05", "USD")])
+      }.to raise_error(Money::IncompatiblePrecisionError, /cannot be represented exactly/)
+    end
+
+    specify "#allocate_max_amounts rejects explicitly mismatched Money maxima" do
+      money = Money.new("0.057", "USD", decimal_precision: 3)
+
+      expect {
+        money.allocate_max_amounts([Money.new("0.03", "USD", decimal_precision: 2)])
+      }.to raise_error(Money::IncompatiblePrecisionError, /does not match allocation decimal precision/)
+    end
+
     specify "#allocate_max_amounts applies explicit decimal precision to numeric and string maxima" do
       money = Money.new("0.057", "USD", decimal_precision: 3)
 
