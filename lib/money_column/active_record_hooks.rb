@@ -62,7 +62,12 @@ module MoneyColumn
         write_currency(column, money, options)
       end
 
-      self[column] = Money::Helpers.value_to_decimal(money)
+      value = Money::Helpers.value_to_decimal(money)
+      if options[:decimal_precision]
+        currency = options[:currency] || send(options[:currency_column])
+        value = Money.new(value, currency, decimal_precision: options[:decimal_precision]).value
+      end
+      self[column] = value
     end
 
     def write_currency(column, money, options)
@@ -158,9 +163,7 @@ module MoneyColumn
           'cannot set both :currency_column and :currency options' if options[:currency] && options[:currency_column]
         raise ArgumentError,
           'must set one of :currency_column or :currency options' unless options[:currency] || options[:currency_column]
-        unless options[:decimal_precision].nil? || (options[:decimal_precision].is_a?(Integer) && options[:decimal_precision] >= 0)
-          raise ArgumentError, "decimal_precision must be a non-negative Integer"
-        end
+        Money::Helpers.validate_decimal_precision!(options[:decimal_precision])
 
         if options[:currency]
           options[:currency] = Money::Currency.find!(options[:currency]).to_s.freeze

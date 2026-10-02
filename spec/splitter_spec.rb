@@ -42,11 +42,22 @@ RSpec.describe "Money::Splitter" do
     expect(splits).to all(be_explicit_decimal_precision)
   end
 
-  specify "#split rounds retained calculation precision to explicit precision units" do
-    splits = Money.new("0.0057", "USD", decimal_precision: 3).split(2).to_a
+  ["0.0057", "-0.0057", "0.0054", "-0.0054"].each do |value|
+    [3, 4].each do |precision|
+      specify "#split conserves #{value} at precision #{precision}" do
+        money = Money.new(value, "USD", decimal_precision: precision)
+
+        expect(money.split(2).sum(&:value)).to eq(money.value)
+      end
+    end
+  end
+
+  specify "#split preserves the value rounded at construction" do
+    money = Money.new("0.0057", "USD", decimal_precision: 3)
+    splits = money.split(2).to_a
 
     expect(splits.map(&:value)).to eq([BigDecimal("0.003"), BigDecimal("0.003")])
-    expect(splits.sum(&:value)).to eq(BigDecimal("0.006"))
+    expect(splits.sum(&:value)).to eq(money.value)
   end
 
   specify "#split uses at least the currency precision" do

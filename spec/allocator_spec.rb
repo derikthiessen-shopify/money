@@ -31,6 +31,17 @@ RSpec.describe "Allocator" do
       expect(money.allocate([1])).to contain_exactly(money)
     end
 
+    ["0.0057", "-0.0057", "0.0054", "-0.0054"].each do |value|
+      [:roundrobin, :roundrobin_reverse, :nearest].each do |strategy|
+        specify "#allocate conserves #{value} with #{strategy}" do
+          money = Money.new(value, "USD", decimal_precision: 3)
+          allocations = money.allocate([Rational(1, 2), Rational(1, 2)], strategy)
+
+          expect(allocations.sum(&:value)).to eq(money.value)
+        end
+      end
+    end
+
     specify "#allocate distributes explicit precision subunits" do
       money = Money.new("0.057", "USD", decimal_precision: 3)
       allocations = money.allocate([0.5, 0.5], :roundrobin)
@@ -368,6 +379,17 @@ RSpec.describe "Allocator" do
       expect(allocations).to all(be_explicit_decimal_precision)
     end
 
+    specify "#allocate_max_amounts does not exceed the receiver after rounding at construction" do
+      [3, 4].each do |precision|
+        money = Money.new("0.0057", "USD", decimal_precision: precision)
+        caps = [Money.new("0.01", "USD"), Money.new("0.01", "USD")]
+        allocations = money.allocate_max_amounts(caps)
+
+        expect(allocations.sum(&:value)).to eq(money.value)
+        allocations.zip(caps).each { |amount, cap| expect(amount.value).to be <= cap.value }
+      end
+    end
+
     specify "#allocate_max_amounts normalizes exactly representable implicit Money maxima" do
       money = Money.new("0.057", "USD", decimal_precision: 3)
       maximums = [Money.new("0.03", "USD"), Money.new("0.03", "USD")]
@@ -427,7 +449,7 @@ RSpec.describe "Allocator" do
         allocations = money.allocate_max_amounts([cap, Money.new(0, Money::NULL_CURRENCY)])
 
         expect(allocations.map(&:decimal_precision)).to eq([0, 0])
-        expect(allocations.map(&:value)).to eq([0, 0])
+        expect(allocations.map(&:value)).to eq([1, 0])
         expect(allocations.map { |amount| amount.currency.iso_code }).to eq(["JPY", "JPY"])
       end
     end
@@ -449,13 +471,24 @@ RSpec.describe "Allocator" do
       end
     end
 
-    specify "#allocate_max_amounts does not round caps up or overallocate retained digits" do
+    specify "#allocate_max_amounts floors raw caps and respects rounded Money caps" do
       money = Money.new("0.1", "USD", decimal_precision: 2)
       allocations = money.allocate_max_amounts(["0.055", Money.new("0.045", "USD", decimal_precision: 2)])
 
-      expect(allocations.map(&:value)).to eq([BigDecimal("0.05"), BigDecimal("0.04")])
+      expect(allocations.map(&:value)).to eq([BigDecimal("0.05"), BigDecimal("0.05")])
       expect(allocations.sum(&:value)).to be <= money.value
       expect(money.allocate_max_amounts(["0.001"]).map(&:value)).to eq([BigDecimal(0)])
+    end
+
+    specify "#allocate_max_amounts floors numeric and string caps before constructing Money" do
+      money = Money.new("0.1", "USD", decimal_precision: 2)
+
+      [[0.055, 0.045], ["0.055", "0.045"]].each do |caps|
+        allocations = money.allocate_max_amounts(caps)
+
+        expect(allocations.map(&:value)).to eq([BigDecimal("0.05"), BigDecimal("0.04")])
+        expect(allocations.sum(&:value)).to be <= money.value
+      end
     end
 
     specify "#allocate_max_amounts applies explicit decimal precision to numeric and string maxima" do

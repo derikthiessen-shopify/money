@@ -17,7 +17,7 @@ class Money
       @split ||= begin
         units = Helpers.money_to_units(@money)
         low_units = units / @num
-        decimal_precision = @money.decimal_precision if @money.explicit_decimal_precision?
+        decimal_precision = @money.explicit_decimal_precision
         low = Helpers.money_from_units(low_units, @money.currency, decimal_precision: decimal_precision)
         high = Helpers.money_from_units(low_units + 1, @money.currency, decimal_precision: decimal_precision)
 

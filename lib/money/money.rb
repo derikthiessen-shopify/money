@@ -70,12 +70,14 @@ class Money
 
       value = Helpers.value_to_decimal(value)
       currency = Helpers.value_to_currency(currency)
+      arguments = [value, currency]
+      arguments << decimal_precision unless decimal_precision.nil?
       if value.zero?
         @@zero_money ||= {}
         cache_key = [currency.iso_code, decimal_precision]
-        @@zero_money[cache_key] ||= super(Helpers::DECIMAL_ZERO, currency, decimal_precision)
+        @@zero_money[cache_key] ||= super(*arguments)
       else
-        super(value, currency, decimal_precision)
+        super(*arguments)
       end
     end
     alias_method :from_amount, :new
@@ -126,29 +128,24 @@ class Money
     end
   end
 
-  def initialize(value, currency, decimal_precision)
+  def initialize(value, currency, decimal_precision = nil)
     raise ArgumentError if value.nan?
     raise ArgumentError if value.infinite?
-    unless decimal_precision.nil? || (decimal_precision.is_a?(Integer) && decimal_precision >= 0)
-      raise ArgumentError, "decimal_precision must be a non-negative Integer"
-    end
+    Helpers.validate_decimal_precision!(decimal_precision)
 
     @currency = currency
-    @decimal_precision = decimal_precision
-    @value = if explicit_decimal_precision?
-      BigDecimal(value)
-    else
-      BigDecimal(value.round(self.decimal_precision))
-    end
+    @decimal_precision = [decimal_precision, currency.minor_units].max if decimal_precision
+    @value = BigDecimal(value.round(self.decimal_precision))
     freeze
   end
 
   def init_with(coder)
-    initialize(
+    arguments = [
       Helpers.value_to_decimal(coder['value']),
       Helpers.value_to_currency(coder['currency']),
-      coder['decimal_precision'],
-    )
+    ]
+    arguments << coder['decimal_precision'] unless coder['decimal_precision'].nil?
+    initialize(*arguments)
   end
 
   def encode_with(coder)
@@ -166,7 +163,11 @@ class Money
   end
 
   def decimal_precision
-    [@decimal_precision || currency.minor_units, currency.minor_units].max
+    @decimal_precision || currency.minor_units
+  end
+
+  def explicit_decimal_precision
+    @decimal_precision
   end
 
   def explicit_decimal_precision?
@@ -174,7 +175,7 @@ class Money
   end
 
   def -@
-    Money.new(-value, currency, decimal_precision: precision_argument)
+    Money.new(-value, currency, decimal_precision: explicit_decimal_precision)
   end
 
   def <=>(other)
@@ -192,7 +193,7 @@ class Money
   def +(other)
     arithmetic(other) do |money|
       result_decimal_precision = calculated_decimal_precision(money)
-      return self if money.value.zero? && !no_currency? && result_decimal_precision == precision_argument
+      return self if money.value.zero? && !no_currency? && result_decimal_precision == explicit_decimal_precision
       Money.new(value + money.value, calculated_currency(money.currency), decimal_precision: result_decimal_precision)
     end
   end
@@ -200,7 +201,7 @@ class Money
   def -(other)
     arithmetic(other) do |money|
       result_decimal_precision = calculated_decimal_precision(money)
-      return self if money.value.zero? && !no_currency? && result_decimal_precision == precision_argument
+      return self if money.value.zero? && !no_currency? && result_decimal_precision == explicit_decimal_precision
       Money.new(value - money.value, calculated_currency(money.currency), decimal_precision: result_decimal_precision)
     end
   end
@@ -209,7 +210,7 @@ class Money
     raise ArgumentError, "Money objects can only be multiplied by a Numeric" unless other.is_a?(Numeric)
 
     return self if other == 1
-    Money.new(value.to_r * other, currency, decimal_precision: precision_argument)
+    Money.new(value.to_r * other, currency, decimal_precision: explicit_decimal_precision)
   end
 
   def /(other)
@@ -245,7 +246,7 @@ class Money
   end
 
   def convert_currency(exchange_rate, new_currency)
-    Money.new(value * exchange_rate, new_currency, decimal_precision: precision_argument)
+    Money.new(value * exchange_rate, new_currency, decimal_precision: explicit_decimal_precision)
   end
 
   def to_money(new_currency = nil)
@@ -254,7 +255,7 @@ class Money
     end
 
     if no_currency?
-      return Money.new(value, new_currency, decimal_precision: precision_argument)
+      return Money.new(value, new_currency, decimal_precision: explicit_decimal_precision)
     end
 
     ensure_compatible_currency(
@@ -306,10 +307,7 @@ class Money
     if (options.is_a?(Hash) && options[:legacy_format]) || Money::Config.current.legacy_json_format
       to_s
     else
-      serialized_value = explicit_decimal_precision? ? value.to_s("F") : to_s(:amount)
-      hash = { value: serialized_value, currency: currency.to_s }
-      hash[:decimal_precision] = decimal_precision if explicit_decimal_precision?
-      hash
+      { value: to_s(:amount), currency: currency.to_s }
     end
   end
   alias_method :to_h, :as_json
@@ -317,26 +315,26 @@ class Money
   def abs
     abs = value.abs
     return self if value == abs
-    Money.new(abs, currency, decimal_precision: precision_argument)
+    Money.new(abs, currency, decimal_precision: explicit_decimal_precision)
   end
 
   def floor
     floor = value.floor
     return self if floor == value
-    Money.new(floor, currency, decimal_precision: precision_argument)
+    Money.new(floor, currency, decimal_precision: explicit_decimal_precision)
   end
 
   def round(ndigits = 0)
     round = value.round(ndigits)
     return self if round == value
-    Money.new(round, currency, decimal_precision: precision_argument)
+    Money.new(round, currency, decimal_precision: explicit_decimal_precision)
   end
 
   def fraction(rate)
     raise ArgumentError, "rate should be positive" if rate < 0
 
     result = value / (1 + rate)
-    Money.new(result, currency, decimal_precision: precision_argument)
+    Money.new(result, currency, decimal_precision: explicit_decimal_precision)
   end
 
   # @see Money::Allocator#allocate
@@ -393,7 +391,7 @@ class Money
     if clamped_value == value
       self
     else
-      Money.new(clamped_value, currency, decimal_precision: precision_argument)
+      Money.new(clamped_value, currency, decimal_precision: explicit_decimal_precision)
     end
   end
 
@@ -409,7 +407,7 @@ class Money
       yield(other)
 
     when Numeric, String
-      yield(Money.new(other, currency, decimal_precision: precision_argument))
+      yield(Money.new(other, currency, decimal_precision: explicit_decimal_precision))
 
     else
       raise TypeError, "#{other.class.name} can't be coerced into a Money object"
@@ -428,10 +426,6 @@ class Money
     return decimal_precision if other.no_currency? && !other.explicit_decimal_precision?
 
     [decimal_precision, other.decimal_precision].max
-  end
-
-  def precision_argument
-    decimal_precision if explicit_decimal_precision?
   end
 
   def calculated_currency(other)

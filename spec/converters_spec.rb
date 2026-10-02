@@ -55,19 +55,19 @@ RSpec.describe Money::Converters do
       expect(converter.from_subunits(100, usd)).to eq(Money.new(1, usd))
     end
 
-    it 'rounds retained calculation precision when converting to subunits' do
+    it 'rounds explicit values when converting to subunits' do
       expect(converter.to_subunits(Money.new("0.0099", usd, decimal_precision: 2))).to eq(1)
       expect(converter.to_subunits(Money.new("0.0057", "JOD", decimal_precision: 3))).to eq(6)
     end
 
     it 'uses integer currency subunits independently of computation precision' do
-      expect(converter.to_subunits(Money.new("0.0149", usd, decimal_precision: 3))).to eq(1)
-      expect(converter.to_subunits(Money.new("-0.0149", usd, decimal_precision: 3))).to eq(-1)
+      expect(converter.to_subunits(Money.new("0.0149", usd, decimal_precision: 3))).to eq(2)
+      expect(converter.to_subunits(Money.new("-0.0149", usd, decimal_precision: 3))).to eq(-2)
       expect(converter.to_subunits(Money.new("1.6", "JPY", decimal_precision: 4))).to eq(2)
       expect(Money.new("0.057", "USD", decimal_precision: 4).subunits).to eq(6)
     end
 
-    it 'returns integer ISO subunits across declared precisions without changing the raw value' do
+    it 'returns integer ISO subunits across declared precisions without changing the stored value' do
       { "JPY" => 1, "USD" => 123, "BHD" => 1235 }.each do |currency, units|
         [0, 2, 5].each do |precision|
           [1, -1].each do |sign|
@@ -77,10 +77,18 @@ RSpec.describe Money::Converters do
 
             expect(subunits).to be_a(Integer)
             expect(subunits).to eq(units * sign)
-            expect(money.value).to eq(raw_value)
+            expect(money.value).to eq(raw_value.round(money.decimal_precision))
           end
         end
       end
+    end
+  end
+
+  it 'preserves implicit legacy subunit truncation while rounding explicit values' do
+    [1, -1].each do |sign|
+      value = BigDecimal("1.235") * sign
+      expect(Money.new(value, "BHD").subunits(format: :legacy_dollar)).to eq(123 * sign)
+      expect(Money.new(value, "BHD", decimal_precision: 3).subunits(format: :legacy_dollar)).to eq(124 * sign)
     end
   end
 
@@ -102,7 +110,7 @@ RSpec.describe Money::Converters do
     end
 
     it 'uses Stripe currency units independently of explicit computation precision' do
-      money = Money.new("1.0149", ugx, decimal_precision: 3)
+      money = Money.new("1.0149", ugx, decimal_precision: 4)
 
       expect(money.subunits(format: :stripe)).to eq(101)
       expect(money.subunits(format: :stripe)).to be_a(Integer)
@@ -118,8 +126,8 @@ RSpec.describe Money::Converters do
       expect(converter.from_subunits(100, usd)).to eq(Money.new(1, usd))
     end
 
-    it 'keeps legacy dollar units for explicit precision without double rounding' do
-      money = Money.new("-1.0149", "JPY", decimal_precision: 3)
+    it 'keeps legacy dollar units for explicit precision' do
+      money = Money.new("-1.0149", "JPY", decimal_precision: 4)
 
       expect(money.subunits(format: :legacy_dollar)).to eq(-101)
       expect(money.subunits(format: :legacy_dollar)).to be_a(Integer)

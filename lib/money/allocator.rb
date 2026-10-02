@@ -94,7 +94,7 @@ class Money
         Helpers.money_from_units(
           amount[:whole_subunits],
           currency,
-          decimal_precision: allocation_decimal_precision,
+          decimal_precision: explicit_decimal_precision,
         )
       end
     end
@@ -120,19 +120,9 @@ class Money
     #     #=> [Money.new(5), Money.new(2)]
     def allocate_max_amounts(maximums)
       allocation_currency = extract_currency(maximums + [__getobj__])
-      money_values = maximums.grep(Money) + [__getobj__]
-      money_values = money_values.reject { |money| money.no_currency? && !money.explicit_decimal_precision? }
-      precision = if money_values.any?(&:explicit_decimal_precision?)
-        (money_values.map(&:decimal_precision) + [allocation_currency.minor_units]).max
-      end
+      precision = shared_decimal_precision(maximums.grep(Money) + [__getobj__], allocation_currency)
       maximums = maximums.map { |max| coerce_maximum(max, allocation_currency, precision) }
-      maximums_units = maximums.map do |maximum|
-        if precision
-          (maximum.value * 10**precision).floor
-        else
-          maximum.subunits
-        end
-      end
+      maximums_units = maximums.map { |max| Helpers.money_to_units(max, decimal_precision: precision) }
       maximums_total_units = maximums_units.sum
 
       splits = maximums_units.map do |max_units|
@@ -180,7 +170,14 @@ class Money
     def coerce_maximum(maximum, allocation_currency, precision)
       return maximum.to_money(allocation_currency) if maximum.is_a?(Money)
 
-      Money.new(maximum, allocation_currency, decimal_precision: precision)
+      value = Helpers.value_to_decimal(maximum)
+      value = value.floor(precision) if precision
+      Money.new(value, allocation_currency, decimal_precision: precision)
+    end
+
+    def shared_decimal_precision(money_values, allocation_currency)
+      explicit = money_values.filter_map(&:explicit_decimal_precision)
+      [*explicit, allocation_currency.minor_units].max if explicit.any?
     end
 
     def amounts_from_splits(allocations, splits, subunits_to_split = allocation_units)
@@ -205,12 +202,8 @@ class Money
       splits.all? { |split| split.is_a?(Rational) }
     end
 
-    def allocation_decimal_precision
-      decimal_precision if explicit_decimal_precision?
-    end
-
-    def allocation_units(money = __getobj__)
-      Helpers.money_to_units(money, decimal_precision: allocation_decimal_precision)
+    def allocation_units
+      Helpers.money_to_units(__getobj__)
     end
 
     # Given a list of decimal numbers, return a list ordered by which is nearest to the next whole number.

@@ -33,10 +33,16 @@ class Money
       value
     end
 
-    def money_to_units(money, decimal_precision: money.explicit_decimal_precision? ? money.decimal_precision : nil)
+    def validate_decimal_precision!(decimal_precision)
+      return if decimal_precision.nil? || (decimal_precision.is_a?(Integer) && decimal_precision >= 0)
+
+      raise ArgumentError, "decimal_precision must be a non-negative Integer"
+    end
+
+    def money_to_units(money, decimal_precision: money.explicit_decimal_precision)
       return money.subunits if decimal_precision.nil?
 
-      (money.value.round(decimal_precision) * 10**decimal_precision).to_i
+      (money.value * 10**decimal_precision).floor
     end
 
     def money_from_units(units, currency, decimal_precision: nil)
