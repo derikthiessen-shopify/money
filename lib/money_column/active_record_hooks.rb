@@ -64,7 +64,7 @@ module MoneyColumn
 
       value = Money::Helpers.value_to_decimal(money)
       if options[:decimal_precision]
-        currency = options[:currency] || send(options[:currency_column])
+        currency = options[:currency] || read_currency_column(options[:currency_column])
         value = Money.new(value, currency, decimal_precision: options[:decimal_precision]).value
       end
       self[column] = value

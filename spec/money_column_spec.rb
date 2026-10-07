@@ -159,6 +159,27 @@ RSpec.describe 'MoneyColumn' do
     end
   end
 
+  [false, true].each do |currency_first|
+    it "rounds simultaneous amount and currency updates using the pending currency (currency first: #{currency_first})" do
+      stub_const("PendingCurrencyRecord", Class.new(ActiveRecord::Base) do
+        self.table_name = "money_records"
+        money_column :price, currency_column: :price_currency, decimal_precision: 0
+      end)
+      attributes = { price: "1.2345", price_currency: "BHD" }
+      attributes = attributes.to_a.reverse.to_h if currency_first
+
+      Money.with_config(currency: nil) do
+        record = PendingCurrencyRecord.create!(attributes)
+        expect(record.reload.price.value).to eq(BigDecimal("1.235"))
+      end
+
+      record = PendingCurrencyRecord.create!(price_currency: "USD", price: "1.00")
+      record.update!(attributes)
+      expect(record.reload.price.value).to eq(BigDecimal("1.235"))
+      expect(record.price.currency.iso_code).to eq("BHD")
+    end
+  end
+
   it 'validates a configured fixed decimal precision' do
     expect {
       Class.new(ActiveRecord::Base) do
