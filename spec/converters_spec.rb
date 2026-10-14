@@ -55,21 +55,25 @@ RSpec.describe Money::Converters do
       expect(converter.from_subunits(100, usd)).to eq(Money.new(1, usd))
     end
 
-    it 'rounds explicit values when converting to subunits' do
+    it 'converts values rounded at construction to subunits' do
       expect(converter.to_subunits(Money.new("0.0099", usd, decimal_precision: 2))).to eq(1)
       expect(converter.to_subunits(Money.new("0.0057", "JOD", decimal_precision: 3))).to eq(6)
     end
 
     it 'uses integer currency subunits independently of computation precision' do
-      expect(converter.to_subunits(Money.new("0.0149", usd, decimal_precision: 3))).to eq(2)
-      expect(converter.to_subunits(Money.new("-0.0149", usd, decimal_precision: 3))).to eq(-2)
-      expect(converter.to_subunits(Money.new("1.6", "JPY", decimal_precision: 4))).to eq(2)
-      expect(Money.new("0.057", "USD", decimal_precision: 4).subunits).to eq(6)
+      expect(converter.to_subunits(Money.new("0.0149", usd, decimal_precision: 3))).to eq(1)
+      expect(converter.to_subunits(Money.new("-0.0149", usd, decimal_precision: 3))).to eq(-1)
+      expect(converter.to_subunits(Money.new("1.6", "JPY", decimal_precision: 4))).to eq(1)
+      expect(Money.new("0.057", "USD", decimal_precision: 4).subunits).to eq(5)
     end
 
     it 'returns integer ISO subunits across declared precisions without changing the stored value' do
-      { "JPY" => 1, "USD" => 123, "BHD" => 1235 }.each do |currency, units|
-        [0, 2, 5].each do |precision|
+      {
+        "JPY" => { 0 => 1, 2 => 1, 5 => 1 },
+        "USD" => { 0 => 123, 2 => 123, 5 => 123 },
+        "BHD" => { 0 => 1235, 2 => 1235, 5 => 1234 },
+      }.each do |currency, precisions|
+        precisions.each do |precision, units|
           [1, -1].each do |sign|
             raw_value = BigDecimal("1.2349") * sign
             money = Money.new(raw_value, currency, decimal_precision: precision)
@@ -84,11 +88,22 @@ RSpec.describe Money::Converters do
     end
   end
 
-  it 'preserves implicit legacy subunit truncation while rounding explicit values' do
+  it 'preserves legacy subunit truncation with and without explicit precision' do
     [1, -1].each do |sign|
       value = BigDecimal("1.235") * sign
       expect(Money.new(value, "BHD").subunits(format: :legacy_dollar)).to eq(123 * sign)
-      expect(Money.new(value, "BHD", decimal_precision: 3).subunits(format: :legacy_dollar)).to eq(124 * sign)
+      expect(Money.new(value, "BHD", decimal_precision: 3).subunits(format: :legacy_dollar)).to eq(123 * sign)
+    end
+  end
+
+  it 'truncates fractional subunits toward zero across built-in formats' do
+    [:iso4217, :stripe, :legacy_dollar].each do |format|
+      [1, -1].each do |sign|
+        money = Money.new(BigDecimal("1.005") * sign, "USD", decimal_precision: 3)
+
+        expect(money.subunits(format: format)).to eq(100 * sign)
+        expect(money.value).to eq(BigDecimal("1.005") * sign)
+      end
     end
   end
 
