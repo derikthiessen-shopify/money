@@ -108,6 +108,11 @@ for your calculation inputs and results. Strings, JSON, and hashes use currency
 presentment and do not preserve calculation precision when read back. Active Job
 and YAML retain the stored calculation value and its explicit precision.
 
+For money columns, `decimal_precision:` also rounds assignments before saving;
+the effective precision is never below the currency's minor units. The model owns
+this configuration, not a separate database column. The amount column must have
+enough decimal scale to store the configured precision.
+
 ## Currency
 
 Currencies are consistently represented as instances of `Money::Currency`.
@@ -290,6 +295,7 @@ end
 | currency | string | hardcoded currency value  |
 | currency_read_only | boolean |  when true, `currency_column` won't write the currency back into the db. Must be set to true if `currency_column` is an attr_reader or delegate. Default: false |
 | coerce_null | boolean | when true, a nil value will be returned as Money.zero. Default: false |
+| decimal_precision | integer | model-level precision used to round assignments and reconstruct stored values, with currency precision as a minimum. No precision database column is needed. Default: the currency's minor units |
 
 You can use multiple `money_column` calls to achieve the desired effects with
 currency on the model or attribute level.
