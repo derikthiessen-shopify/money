@@ -33,6 +33,12 @@ class Money
       value
     end
 
+    def validate_decimal_precision!(decimal_precision)
+      return if decimal_precision.nil? || (decimal_precision.is_a?(Integer) && decimal_precision >= 0)
+
+      raise ArgumentError, "decimal_precision must be a non-negative Integer"
+    end
+
     def value_to_currency(currency)
       case currency
       when Money::Currency, Money::NullCurrency

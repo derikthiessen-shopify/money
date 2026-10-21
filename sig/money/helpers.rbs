@@ -5,6 +5,9 @@ class Money
     DECIMAL_ZERO: BigDecimal
     MAX_DECIMAL: Integer
 
+    def self.validate_decimal_precision!: (untyped decimal_precision) -> void
+    def validate_decimal_precision!: (untyped decimal_precision) -> void
+
     def self.value_to_decimal: (Numeric | String | Money | nil num) -> BigDecimal
     def self.value_to_currency: (String | Currency | NullCurrency | nil currency) -> (Currency | NullCurrency)
 
