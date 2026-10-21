@@ -39,6 +39,19 @@ class Money
       raise ArgumentError, "decimal_precision must be a non-negative Integer"
     end
 
+    def money_to_units(money, decimal_precision: money.explicit_decimal_precision)
+      return money.subunits if decimal_precision.nil?
+
+      (money.value * 10**decimal_precision).floor
+    end
+
+    def money_from_units(units, currency, decimal_precision: nil)
+      return Money.from_subunits(units, currency) if decimal_precision.nil?
+
+      value = value_to_decimal(units) / 10**decimal_precision
+      Money.new(value, currency, decimal_precision: decimal_precision)
+    end
+
     def value_to_currency(currency)
       case currency
       when Money::Currency, Money::NullCurrency
